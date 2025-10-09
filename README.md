@@ -65,7 +65,7 @@
 
 *(Добавьте сюда скриншоты дисплея, HA дашборда или видео демонстрации)*
 
-- [yaml файл прошивки](esphome_device_status.yml)
+- [yaml код карточки](esphome_device_status.yml)
 - [скриншот](device_status_card.jpg)
 - [Видео YOUTUBE](https://youtu.be/YKkLL0JR7so)
 
@@ -75,4 +75,4 @@
 
 ## Контакты
 
-- Telegram: [https://telegram.org/](https://t.me/parus_smart)
+- Telegram: [https://t.me/parus_smart](https://t.me/parus_smart)
