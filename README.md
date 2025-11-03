@@ -39,4 +39,5 @@
 - [yaml package](package_esphome_device_status_update.yaml)
 - [скриншот1](img/esphome_device_status_card.jpg)
 - [скриншот2](img/finish.jpg)
-- [Видео](https://t.me/parus_smart/68/9162)- Telegram: [https://t.me/parus_smart](https://t.me/parus_smart)
+- [Видео](https://t.me/parus_smart/68/9162)
+- [Telegram](https://t.me/parus_smart)
