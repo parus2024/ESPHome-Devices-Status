@@ -146,8 +146,8 @@
 
               # 🔹 Первый таймаут: проверяем, началось ли обновление (2 минуты)
               - wait_template: >
-                  {{ state_attr(repeat.item, 'in_progress') == false }}
-                timeout: '00:02:00'
+                  {{ state_attr(repeat.item, 'in_progress') == true }}
+                timeout: '00:01:00'
                 continue_on_timeout: true
               
               # Проверяем результат первого таймаута
@@ -158,7 +158,7 @@
                         value_template: >
                           {{ state_attr(repeat.item, 'in_progress') == true }}
                     sequence:
-                      # 🔹 Второй таймаут: ждем завершения обновления (25 минут)
+                      # 🔹 Второй таймаут: ждем завершения обновления (10 минут)
                       - service: input_boolean.turn_on
                         target:
                           entity_id: input_boolean.first_timeout_processed
@@ -174,14 +174,14 @@
                                   title: "ESPHome Update"
                                   message: >
                                     Обновление {{ repeat.item }} успешно начато.| 
-                                    Флаг {{ states('input_boolean.first_timeout_processed') }}. Ждем 25 минут.
+                                    Флаг {{ states('input_boolean.first_timeout_processed') }}. Ждем до 10 минут.
                                     Устройство:<< {{ repeat.item }} |
                                     in_progress: {{ state_attr(repeat.item, 'in_progress') }} |
                                     State: {{ states(repeat.item) }} >>
                                     Время: {{ now().strftime('%Y-%m-%d %H:%M:%S') }}.
                       - wait_template: >
-                          {{ state_attr(repeat.item, 'in_progress') == false and is_state(repeat.item, 'off') }}
-                        timeout: '00:25:00'
+                          {{ is_state(repeat.item, 'off') }}
+                        timeout: '00:10:00'
                         continue_on_timeout: true
                       # После второго таймаута проверяем результат
                       - choose:
@@ -402,3 +402,4 @@
 
     device3_esphome_update:
       name: "Update device3"
+
