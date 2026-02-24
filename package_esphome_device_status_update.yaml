@@ -67,64 +67,8 @@
                   target:
                     entity_id: "{{ all_update_bools }}"
 
-  script:
-    update_selected_esphome_sequential:
-      alias: Update Selected ESPHome Sequentially
-      mode: single
-      variables:
-        devices: >
-          {# Блок переменных: здесь формируется список устройств для обновления #}
-          {# Переменная `devices` — содержит список сущностей `update.<device>_firmware`, которые нужно обновить #}
-          {%- set update_booleans = states.input_boolean
-              | selectattr('entity_id', 'search', '_esphome_update')
-              | list -%}
-          {# Получаем все сущности типа `input_boolean` (переключатели) и фильтруем только те, где в `entity_id` есть `_esphome_update` (например, `input_boolean.light_esphome_update`), затем преобразуем результат в список #}
-
-
-          {%- set ns = namespace(update_entities_str='') -%}
-          {# Создаём «пространство имён» (`namespace`) для хранения строки с сущностями для обновления (`update_entities_str` изначально пустая) #}
-
-          {%- for entity in update_booleans -%}
-            {# Перебираем все найденные `input_boolean` (переключатели обновления) #}
-            {%- set entity_id = entity.entity_id -%}
-            {# Сохраняем `entity_id` текущего переключателя (например, `input_boolean.3_phase_esphome_update`) #}
-            {%- set base = entity_id.split('.')[1].replace('_esphome_update', '') -%}
-            {# Извлекаем «базовое» имя устройства:
-                1. `split('.')` делит `entity_id` на части: `input_boolean`, `3_phase_esphome_update`;
-                2. `[1]` берёт вторую часть (`3_phase_esphome_update`);
-                3. `replace('_esphome_update', '')` убирает `_esphome_update`, остаётся `3_phase`.
-            #}
-            {%- set update_entity = 'update.' + base + '_firmware' -%}
-            {# Формируем `entity_id` сущности обновления: `update.3_phase_firmware` #}
-            {%- if entity.state == 'on' and states(update_entity) == 'on' -%}
-              {# Проверяем два условия:
-                  1. Переключатель включён (`input_boolean == on`);
-                  2. Для устройства доступно обновление (`update.<device>_firmware == on`).
-              #}
-              {%- if ns.update_entities_str == '' -%}
-                {# Если строка с сущностями ещё пуста #}
-                {%- set ns.update_entities_str = update_entity -%}
-                {# Добавляем первую сущность (например, `update.3_phase_firmware`) #}
-              {%- else -%}
-                {# Если строка уже содержит сущности #}
-                {%- set ns.update_entities_str = ns.update_entities_str + ',' + update_entity -%}
-                {# Дописываем новую сущность через запятую #}
-              {%- endif -%}
-            {%- endif -%}
-          {%- endfor -%}
-          {# Завершаем цикл по всем переключателям #}
-
-          {# Преобразуем строку в список: далее строка с сущностями преобразуется в список для передачи в сервис #}
-          {%- if ns.update_entities_str == '' -%}
-            {# Если никаких устройств не подошло под условия #}
-            []
-            {# Возвращаем пустой список — обновления не будут запущены #}
-          {%- else -%}
-            {# Если есть хотя бы одно устройство для обновления #}
-            {{ ns.update_entities_str.split(',') }}
-            {# Разбиваем строку по запятым и получаем список сущностей (например, `['update.3_phase_firmware', 'update.airwell_21_firmware']`) #}
-          {%- endif -%}
         success_devices: []
+        failed_devices: []
         message: >
           {% set device_names = devices | map('regex_replace', '^update\\.(.+)_firmware$', '\\1') | list %}
           Начато поочередное обновление следующих устройств ESPHome:
@@ -171,7 +115,7 @@
                           message: >
                             Попытка обновления: **{{ repeat.item | regex_replace("^update\\.(.+)_firmware$", "\\1") }}** |
                             *In_progress: {{ state_attr(repeat.item, 'in_progress') }}* |
-                            *Update: {{ states(repeat.item) }}* |
+                            *Update: {{ 'yes' if states(repeat.item) == 'on' else 'no' }}* |
                             {{ now().strftime('%Y-%m-%d %H:%M:%S') }}.
 
               # 🔹 Первый таймаут: проверяем, началось ли обновление (1 минуты)
@@ -207,7 +151,7 @@
                                     Флаг {{ states('input_boolean.first_timeout_processed') }}. Ждем до 10 минут.
                                     **{{ repeat.item | regex_replace("^update\\.(.+)_firmware$", "\\1") }}**
                                     |*in_progress: {{ state_attr(repeat.item, 'in_progress') }} |
-                                    Update: {{ states(repeat.item) }}* |
+                                    Update: {{ 'yes' if states(repeat.item) == 'on' else 'no' }}* |
                                     {{ now().strftime('%Y-%m-%d %H:%M:%S') }}.
 #                      - wait_template: >
 #                          {{ state_attr(repeat.item, 'in_progress') == false and is_state(repeat.item, 'off') }}
@@ -236,7 +180,7 @@
                                     Обновление успешно завершено.
                                     Устройство: **{{ repeat.item | regex_replace("^update\\.(.+)_firmware$", "\\1") }}** |
                                     |*in_progress*: {{ state_attr(repeat.item, 'in_progress') }} |
-                                    *Update*: {{ states(repeat.item) }} |
+                                    *Update*: {{ 'yes' if states(repeat.item) == 'on' else 'no' }} |
                                     {{ now().strftime('%Y-%m-%d %H:%M:%S') }}.
                           - conditions:
                               # ❌ Завершено с ошибкой 
@@ -248,6 +192,8 @@
                                      and (as_timestamp(now()) - as_timestamp(states[repeat.item].last_changed)) >= 60 }}
 #                                  {{ state_attr(repeat.item, 'in_progress') == false and is_state(repeat.item, 'on') }}
                             sequence:
+                              - variables:
+                                  failed_devices: "{{ failed_devices + [repeat.item] }}"
                               - condition: state
                                 entity_id: input_boolean.esphome_log
                                 state: 'on'
@@ -258,7 +204,7 @@
                                     Попытка обновления завершилась с ошибкой.
                                     Устройство: **{{ repeat.item | regex_replace("^update\\.(.+)_firmware$", "\\1") }}** |
                                     |*in_progress: {{ state_attr(repeat.item, 'in_progress') }} |
-                                    Update: {{ states(repeat.item) }}* |
+                                    Update: {{ 'yes' if states(repeat.item) == 'on' else 'no' }}* |
                                     Время: {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
                           - conditions:
                               # ⏰ Таймаут второго ожидания
@@ -276,7 +222,7 @@
                                     Истек таймаут 10мин ожидания завершения обновления.
                                     Устройство: **{{ repeat.item | regex_replace("^update\\.(.+)_firmware$", "\\1") }}** |
                                     |*in_progress: {{ state_attr(repeat.item, 'in_progress') }} |
-                                    Update: {{ states(repeat.item) }}* |
+                                    Update: {{ 'yes' if states(repeat.item) == 'on' else 'no' }}* |
                                     {{ now().strftime('%Y-%m-%d %H:%M:%S') }}.
                   - conditions:
                       # (2)❌ ⏰ ТаймаутОбновление не началось (ошибка конфигурации и т.п.)
@@ -290,6 +236,8 @@
 #                             and is_state(repeat.item, 'on')
 #                             and is_state('input_boolean.first_timeout_processed', 'off') }}
                     sequence:
+                      - variables:
+                          failed_devices: "{{ failed_devices + [repeat.item] }}"
                       - condition: state
                         entity_id: input_boolean.esphome_log
                         state: 'on'
@@ -300,7 +248,7 @@
                             Обновление не началось - возможно ошибка конфигурации.
                             Устройство: **{{ repeat.item | regex_replace("^update\\.(.+)_firmware$", "\\1") }}** |
                             *in_progress: {{ state_attr(repeat.item, 'in_progress') }} |
-                            Update: {{ states(repeat.item) }}* |
+                            Update: {{ 'yes' if states(repeat.item) == 'on' else 'no' }}* |
                             {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
         - service: persistent_notification.create
           data:
@@ -315,6 +263,13 @@
               {% endfor %}
               {% else %}
               Нет успешно обновленных устройств.
+              {% endif %}
+              {% set failed_device_names = failed_devices | map('regex_replace', '^update\\.(.+)_firmware$', '\\1') | list %}
+              {% if failed_device_names | length > 0 %}
+              Не удалось обновить (превысил аптайм или конфигурационная ошибка): {{ failed_device_names | length }}<br>
+              {% for device in failed_device_names %}
+              - **{{ device }}** {% if not loop.last %}, {% endif %}
+              {% endfor %}
               {% endif %}
               | Время: {{ now().strftime('%Y-%m-%d %H:%M:%S') }}.
     start_update:
@@ -435,5 +390,6 @@
 
     device3_esphome_update:
       name: "Update device3"
+
 
 
